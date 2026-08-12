@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import path from "path";
+import fs from "fs";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 import { env } from "./config/env";
@@ -37,8 +38,17 @@ export function createApp() {
 
   app.get("/health", (_req, res) => res.json({ status: "ok", service: "nexora-erp-api" }));
 
-  const openapiDocument = YAML.load(path.join(__dirname, "docs/openapi.yaml"));
-  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
+  try {
+    const primaryPath = path.join(__dirname, "docs/openapi.yaml");
+    const fallbackPath = path.join(__dirname, "../src/docs/openapi.yaml");
+    const yamlPath = fs.existsSync(primaryPath) ? primaryPath : fs.existsSync(fallbackPath) ? fallbackPath : null;
+    if (yamlPath) {
+      const openapiDocument = YAML.load(yamlPath);
+      app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
+    }
+  } catch (err) {
+    console.warn("Swagger docs skipped:", err);
+  }
 
   app.use("/api/auth", authRoutes);
   app.use("/api/customers", customerRoutes);
