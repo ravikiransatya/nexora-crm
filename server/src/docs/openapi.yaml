@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: Nexora ERP API
+  description: Mini ERP + CRM operations portal for a wholesale/distribution business.
+  version: 1.0.0
+servers:
+  - url: /api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiSuccess:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { type: object }
+        message: { type: string }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object }
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and receive a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: admin@nexora.demo }
+                password: { type: string, example: Passw0rd! }
+      responses:
+        "200": { description: OK }
+        "401": { description: Invalid credentials }
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers (paginated, searchable, filterable)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [LEAD, ACTIVE, INACTIVE] }
+        - in: query
+          name: customerType
+          schema: { type: string, enum: [RETAIL, WHOLESALE, DISTRIBUTOR] }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      responses:
+        "201": { description: Created }
+        "422": { description: Validation error }
+  /customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get customer detail (with follow-ups and recent challans)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+    patch:
+      tags: [Customers]
+      summary: Update a customer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+  /customers/{id}/followups:
+    post:
+      tags: [Customers]
+      summary: Add a CRM follow-up note
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201": { description: Created }
+  /products:
+    get:
+      tags: [Products]
+      summary: List products (paginated, searchable, filterable)
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Products]
+      summary: Create a product
+      responses:
+        "201": { description: Created }
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: Get product detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+    patch:
+      tags: [Products]
+      summary: Update a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+  /products/stock/movements:
+    get:
+      tags: [Inventory]
+      summary: List stock movements (paginated, filterable)
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Inventory]
+      summary: Record a manual stock movement (IN/OUT)
+      responses:
+        "201": { description: Created }
+        "409": { description: Insufficient stock for an OUT movement }
+  /challans:
+    get:
+      tags: [Challans]
+      summary: List sales challans
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Challans]
+      summary: Create a draft challan with line items
+      responses:
+        "201": { description: Created }
+  /challans/{id}:
+    get:
+      tags: [Challans]
+      summary: Get challan detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+    patch:
+      tags: [Challans]
+      summary: Edit a DRAFT challan
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+        "409": { description: Only DRAFT challans can be edited }
+  /challans/{id}/confirm:
+    post:
+      tags: [Challans]
+      summary: Confirm a challan — deducts stock transactionally
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Confirmed }
+        "409":
+          description: Insufficient stock — the whole transaction is rolled back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /challans/{id}/cancel:
+    post:
+      tags: [Challans]
+      summary: Cancel a challan (reverses stock if it was confirmed)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Cancelled }
+  /challans/{id}/pdf:
+    get:
+      tags: [Challans]
+      summary: Download the challan as a branded PDF
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: PDF file
+          content:
+            application/pdf: {}
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Operations dashboard summary (live DB aggregates)
+      responses:
+        "200": { description: OK }
+  /audit-logs:
+    get:
+      tags: [Admin]
+      summary: List audit logs (Admin only)
+      responses:
+        "200": { description: OK }
+        "403": { description: Forbidden }
+  /users:
+    get:
+      tags: [Admin]
+      summary: List users (Admin only)
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Admin]
+      summary: Create a user (Admin only)
+      responses:
+        "201": { description: Created }
+  /search:
+    get:
+      tags: [Search]
+      summary: Global command search across customers/products/challans
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
